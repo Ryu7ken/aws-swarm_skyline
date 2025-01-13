@@ -1,5 +1,7 @@
 <h1>AWS Cloud Project Overview</h1>
 
+![Architecture](/assets/images/AWS%20Project%20Architecture.jpeg)
+
 ***<h3>1. VPC Creation:</h3>***
 I designed a Virtual Private Cloud (VPC) with 2 public subnets and 2 private subnets across 2 Availability Zones (AZs). This setup ensures high availability and fault tolerance by distributing resources across multiple AZs, minimizing the risk of downtime due to failures in a single AZ. Additionally, a NAT Gateway was provisioned in each AZ to enable outbound internet access for resources in private subnets. Having a NAT Gateway in each AZ ensures uninterrupted connectivity even if one AZ experiences issues.
 
