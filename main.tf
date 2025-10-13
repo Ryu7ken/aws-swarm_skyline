@@ -177,3 +177,142 @@ resource "aws_route_table_association" "skyline_private_rta_az2" {
   subnet_id = aws_subnet.skyline_private_az2.id
   route_table_id = aws_route_table.skyline_private_rt_az2.id
 }
+
+# Bastion Host Security Group
+resource "aws_security_group" "skyline_bastion_sg" {
+  name = "skyline_bastion_sg"
+  description = "Allow SSH into Bastion Host"
+  vpc_id = aws_vpc.skyline_vpc.id
+
+  tags = {
+    Name = "skyline-bastion-sg"
+  }
+}
+
+# Bastion Host Security Group Ingress Rule
+resource "aws_vpc_security_group_ingress_rule" "skyline_bastion_ir" {
+  security_group_id = aws_security_group.skyline_bastion_sg.id
+  cidr_ipv4 = "0.0.0.0/0"
+  ip_protocol = "tcp"
+  from_port = 22
+  to_port = 22
+}
+
+# Bastion Host Security Group Egress Rule
+resource "aws_vpc_security_group_egress_rule" "skyline_bastion_er" {
+  security_group_id = aws_security_group.skyline_bastion_sg.id
+  cidr_ipv4 = "0.0.0.0/0"
+  ip_protocol = "-1"
+}
+
+# ALB Security Group
+resource "aws_security_group" "skyline_alb_sg" {
+  name = "skyline_alb_sg"
+  description = "Allow Traffic from the Internet"
+  vpc_id = aws_vpc.skyline_vpc.id
+
+  tags = {
+    Name = "skyline-alb-sg"
+  }
+}
+
+# ALB Security Group Ingress Rule
+resource "aws_security_group_rule" "skyline_alb_ir" {
+  security_group_id = aws_security_group.skyline_alb_sg.id
+  type = "ingress"
+  cidr_blocks = [ "0.0.0.0/0" ]
+  protocol = "tcp"
+  from_port = 80
+  to_port = 80
+}
+
+# ALB Security Group Egress Rule
+resource "aws_security_group_rule" "skyline_alb_er" {
+  security_group_id = aws_security_group.skyline_alb_sg.id
+  type = "egress"
+  protocol = "tcp"
+  from_port = 80
+  to_port = 80
+  source_security_group_id = aws_security_group.skyline_ec2_sg.id
+}
+
+# EC2 Security Group
+resource "aws_security_group" "skyline_ec2_sg" {
+  name = "skyline_ec2_sg"
+  description = "Allow Bastion SSH, ALB and Docker Swarm"
+  vpc_id = aws_vpc.skyline_vpc.id
+
+  tags = {
+    Name = "skyline-ec2-sg"
+  }
+}
+
+# EC2 Security Group Ingress Rule for Bastion SSH
+resource "aws_security_group_rule" "skyline_ec2_ssh_ir" {
+  security_group_id = aws_security_group.skyline_ec2_sg.id
+  type = "ingress"
+  protocol = "tcp"
+  from_port = 22
+  to_port = 22
+  source_security_group_id = aws_security_group.skyline_bastion_sg.id
+}
+
+# EC2 Security Group Ingress Rule for ALB Traffic
+resource "aws_security_group_rule" "skyline_ec2_alb_ir" {
+  security_group_id = aws_security_group.skyline_ec2_sg.id
+  type = "ingress"
+  protocol = "tcp"
+  from_port = 80
+  to_port = 80
+  source_security_group_id = aws_security_group.skyline_alb_sg.id
+}
+
+# EC2 Security Group Ingress Rule for Docker Swarm Cluster Management
+resource "aws_security_group_rule" "skyline_ec2_cm_ir" {
+  security_group_id = aws_security_group.skyline_ec2_sg.id
+  type = "ingress"
+  protocol = "tcp"
+  from_port = 2377
+  to_port = 2377
+  self = true       # Allow traffic from instances in the SAME security group
+}
+
+# EC2 Security Group Ingress Rule for Docker Swarm Node Communication (TCP)
+resource "aws_security_group_rule" "skyline_ec2_nc_tcp_ir" {
+  security_group_id = aws_security_group.skyline_ec2_sg.id
+  type = "ingress"
+  protocol = "tcp"
+  from_port = 7946
+  to_port = 7946
+  self = true       # Allow traffic from instances in the SAME security group
+}
+
+# EC2 Security Group Ingress Rule for Docker Swarm Node Communication (UDP)
+resource "aws_security_group_rule" "skyline_ec2_nc_udp_ir" {
+  security_group_id = aws_security_group.skyline_ec2_sg.id
+  type = "ingress"
+  protocol = "udp"
+  from_port = 7946
+  to_port = 7946
+  self = true       # Allow traffic from instances in the SAME security group
+}
+
+# EC2 Security Group Ingress Rule for Docker Swarm Overlay Network (UDP)
+resource "aws_security_group_rule" "skyline_ec2_on_udp_ir" {
+  security_group_id = aws_security_group.skyline_ec2_sg.id
+  type = "ingress"
+  protocol = "udp"
+  from_port = 4789
+  to_port = 4789
+  self = true       # Allow traffic from instances in the SAME security group
+}
+
+# EC2 Security Group Egress Rule
+resource "aws_security_group_rule" "skyline_ec2_er" {
+  security_group_id = aws_security_group.skyline_ec2_sg.id
+  type = "egress"
+  protocol = "-1"
+  from_port = 0
+  to_port = 0
+  cidr_blocks = [ "0.0.0.0/0" ]
+}
