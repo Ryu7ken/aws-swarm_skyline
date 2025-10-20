@@ -316,3 +316,30 @@ resource "aws_security_group_rule" "skyline_ec2_er" {
   to_port = 0
   cidr_blocks = [ "0.0.0.0/0" ]
 }
+
+# Launch Template for Auto Scaling Group
+resource "aws_launch_template" "skyline_swarm_lt" {
+  name = "skyline-swarm-"
+  image_id = data.aws_ami.skyline_ami.id
+  instance_type = var.skyline_instance_type
+  key_name = var.skyline_key
+  user_data = base64encode(file("${path.module}/userdata.tpl"))
+
+  network_interfaces {
+    associate_public_ip_address = false
+    security_groups = [ aws_security_group.skyline_ec2_sg.id ]
+    delete_on_termination = true
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name = "skyline-swarm-node"
+      Role = "docker-swarm"
+    }
+  }
+
+  tags = {
+    Name = "skyline-swarm-lt"
+  }
+}
