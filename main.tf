@@ -343,3 +343,70 @@ resource "aws_launch_template" "skyline_swarm_lt" {
     Name = "skyline-swarm-lt"
   }
 }
+
+# Target Group to group EC2 for ALB
+resource "aws_lb_target_group" "skyline_alb_tg" {
+  name     = "skyline-alb-tg"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.skyline_vpc.id
+
+  # Deregistration delay - wait before removing instance
+  deregistration_delay = 30
+
+  health_check {
+    enabled = true
+    healthy_threshold = 2      # 2 successful checks = healthy
+    unhealthy_threshold = 3    # 3 failed checks = unhealthy
+    timeout = 6                # 6 seconds to respond
+    interval = 30              # Check every 30 seconds
+    path = "/"                 # Health check endpoint
+    matcher = "200"            # Expected HTTP response code
+  }
+
+  tags = {
+    Name = "skyline-alb-tg"
+  }
+}
+
+# Auto Scaling Group for HA and ALB
+resource "aws_autoscaling_group" "skyline_asg" {
+  name = "skyline-asg"
+  max_size = 4
+  min_size = 1
+  desired_capacity = 2
+  health_check_type = "ELB"   # Use ELB health checks instead of EC2
+  health_check_grace_period = 300   # Wait 5 minutes before checking health
+
+  # Wait for instances to be healthy before considering deployment successful
+  wait_for_capacity_timeout = "10m"
+
+  launch_template {
+    id = aws_launch_template.skyline_swarm_lt.id
+    version = "$Latest"
+  }
+
+  # Deploy instances in PRIVATE subnets only
+  vpc_zone_identifier = [ aws_subnet.skyline_private_az1.id, aws_subnet.skyline_private_az2.id ]
+
+  # Attach to the target group (for ALB)
+  target_group_arns = [ aws_lb_target_group.skyline_alb_tg.arn ]
+
+  # Lifecycle settings
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  # Tags for instances launched by this ASG
+  tag {
+    key = "Name"
+    value = "skyline-swarm"
+    propagate_at_launch = true
+  }
+
+  tag {
+    key = "Role"
+    value = "docker-swarm"
+    propagate_at_launch = true
+  }
+}
