@@ -377,6 +377,7 @@ resource "aws_autoscaling_group" "skyline_asg" {
   desired_capacity = 2
   health_check_type = "ELB"   # Use ELB health checks instead of EC2
   health_check_grace_period = 300   # Wait 5 minutes before checking health
+  capacity_rebalance = true
 
   # Wait for instances to be healthy before considering deployment successful
   wait_for_capacity_timeout = "10m"
@@ -408,5 +409,38 @@ resource "aws_autoscaling_group" "skyline_asg" {
     key = "Role"
     value = "docker-swarm"
     propagate_at_launch = true
+  }
+}
+
+# Application Load Balancer
+resource "aws_lb" "skyline_alb" {
+  name = "skyline-swarm-alb"
+  internal = false    # Internet-facing ALB
+  load_balancer_type = "application"
+  security_groups = [ aws_security_group.skyline_alb_sg.id ]
+  subnets = [ aws_subnet.skyline_public_az1.id, aws_subnet.skyline_public_az2.id ]
+  enable_deletion_protection = false
+  enable_http2 = true
+  enable_cross_zone_load_balancing = true
+
+  tags = {
+    Name = "skyline-alb"
+  }
+}
+
+# Listener - defines how ALB handles incoming traffic
+resource "aws_lb_listener" "skyline_alb_listener" {
+  load_balancer_arn = aws_lb.skyline_alb.arn
+  port = "80"
+  protocol = "HTTP"
+
+  # Default action - forward to target group
+  default_action {
+    type = "forward"
+    target_group_arn = aws_lb_target_group.skyline_alb_tg.arn
+  }
+
+  tags = {
+    Name = "skyline-alb-listener"
   }
 }
